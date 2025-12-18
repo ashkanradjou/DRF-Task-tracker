@@ -1,30 +1,33 @@
 from django.contrib.auth.models import User
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, renderers, status
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from .models import Task
 from .permissions import IsOwner
 from .serializers import RegisterSerializer, TaskSerializer
 
 
-class RegisterView(APIView):
+class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
 
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        headers = self.get_success_headers(serializer.data)
         return Response(
             {'id': user.id, 'username': user.username},
             status=status.HTTP_201_CREATED,
+            headers=headers,
         )
 
 
 class LoginView(ObtainAuthToken):
     permission_classes = [permissions.AllowAny]
+    renderer_classes = [renderers.JSONRenderer, renderers.BrowsableAPIRenderer]
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -32,6 +35,10 @@ class LoginView(ObtainAuthToken):
         return Response(
             {'token': token.key, 'user_id': token.user_id, 'username': token.user.username}
         )
+
+    def get(self, request, *args, **kwargs):
+        serializer = self.serializer_class()
+        return Response(serializer.data)
 
 
 class TaskListCreateView(generics.ListCreateAPIView):
